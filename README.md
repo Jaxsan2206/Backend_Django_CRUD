@@ -78,3 +78,16 @@ Update
 
 Destroy
 * b.delete()
+
+* To create an admin user and use the admin panel (comes in a default Django setup at /admin), you will need to create a super user using `python manage.py createsuperuser`. 
+* Visit /admin and log in with your new credentials.
+* To add a model to your admin, register it in your `<app-name>/admin.py`
+
+```
+# adoption/admin.py
+from django.contrib import admin
+
+# Register your models here.
+from .models import Pokemon
+admin.site.register(Pokemon)
+```
