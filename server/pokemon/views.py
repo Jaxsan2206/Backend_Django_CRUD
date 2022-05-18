@@ -1,38 +1,55 @@
-import json
-from django.shortcuts import render
-from django.http import JsonResponse, HttpResponse
+from django.http import  Http404
 from .models import Pokemon
-from django.core import serializers
 # Create your views here.
 
-def index(request):
-    if request.method == 'GET':
-        print(request.body)
-        data = list(Pokemon.objects.values())
-        return JsonResponse(data, safe=False)
-    elif request.method == 'POST':
-        body = json.loads(request.body.decode('utf-8'))
-        gh = Pokemon(name=body['name'], type=body['type'])
-        gh.save()
-        lastOne = list(Pokemon.objects.values())[-1]
-        return JsonResponse(lastOne, safe=False)
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .serializers import PokemonSerializer
+from rest_framework.permissions import BasePermission, IsAuthenticated, SAFE_METHODS
+
+class ReadOnly(BasePermission):
+    def has_permission(self, request, view):
+        return request.method in SAFE_METHODS
 
 
-def show(request, id):
-    if request.method == 'GET':
-        data = list(Pokemon.objects.filter(pk=id).values())
-        print(data)
-        return JsonResponse(data, safe=False)
-    elif request.method == 'PATCH' or request.method == 'PUT':
-        data = Pokemon.objects.get(pk=id)
-        request_body = json.loads(request.body.decode('utf-8'))
-        data.name = request_body['name']
-        data.type = request_body['type']
-        data.save()
-        updated_pokemon = list(Pokemon.objects.filter(pk=id).values())
-        return JsonResponse(updated_pokemon, safe=False)
-    elif request.method == 'DELETE':
-        delete_pokemon = list(Pokemon.objects.filter(pk=id).values())
-        data = Pokemon.objects.get(pk=id)
-        data.delete()
-        return JsonResponse(delete_pokemon, safe=False)
+class PokemonList (APIView):
+    permission_classes = [IsAuthenticated|ReadOnly]
+    def get(self, request, format = None):
+        pokemons = Pokemon.objects.all()
+        serializer = PokemonSerializer(pokemons, many = True)
+        return Response(serializer.data)
+
+    def post(self, request, format = None):
+        serializer = PokemonSerializer(data = request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+
+
+class PokemonInd (APIView):
+    permission_classes = [IsAuthenticated]
+    def get_object(self, id):
+        try:
+            return Pokemon.objects.get(pk=id)
+        except Pokemon.DoesNotExist:
+            raise Http404
+
+    def get(self, request, id, format = None):
+        pokemon = self.get_object(id)
+        serializer = PokemonSerializer(pokemon)
+        return Response(serializer.data)
+    
+    def put(self, request,id, format=None):
+        pokemon = self.get_object(id)
+        serializer = PokemonSerializer(pokemon, data = request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, id, format = None):
+        pokemon = self.get_object(id)
+        pokemon.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
